@@ -112,6 +112,7 @@ class SaveImageInBackgroundData {
         imageUri = null;
         iconSize = 0;
     }
+
     void clearContext() {
         context = null;
     }
@@ -417,21 +418,23 @@ class SaveImageInBackgroundTask extends AsyncTask<Void, Void, Void> {
             mPublicNotificationBuilder
                     .setContentTitle(r.getString(R.string.screenshot_saved_title))
                     .setContentText(r.getString(R.string.screenshot_saved_text))
-                    .setContentIntent(PendingIntent.getActivity(mParams.context, 0, launchIntent, 0))
+                    .setContentIntent(PendingIntent.getActivity(mParams.context, 0, launchIntent,
+                            PendingIntent.FLAG_IMMUTABLE))
                     .setWhen(now)
                     .setAutoCancel(true)
                     .setColor(context.getColor(
                             com.android.internal.R.color.system_notification_accent_color));
             mNotificationBuilder
-                .setContentTitle(r.getString(R.string.screenshot_saved_title))
-                .setContentText(r.getString(R.string.screenshot_saved_text))
-                .setContentIntent(PendingIntent.getActivity(mParams.context, 0, launchIntent, 0))
-                .setWhen(now)
-                .setAutoCancel(true)
-                .setColor(context.getColor(
-                        com.android.internal.R.color.system_notification_accent_color))
-                .setPublicVersion(mPublicNotificationBuilder.build())
-                .setFlag(Notification.FLAG_NO_CLEAR, false);
+                    .setContentTitle(r.getString(R.string.screenshot_saved_title))
+                    .setContentText(r.getString(R.string.screenshot_saved_text))
+                    .setContentIntent(PendingIntent.getActivity(mParams.context, 0, launchIntent,
+                            PendingIntent.FLAG_IMMUTABLE))
+                    .setWhen(now)
+                    .setAutoCancel(true)
+                    .setColor(context.getColor(
+                            com.android.internal.R.color.system_notification_accent_color))
+                    .setPublicVersion(mPublicNotificationBuilder.build())
+                    .setFlag(Notification.FLAG_NO_CLEAR, false);
 
             mNotificationManager.notify(SystemMessage.NOTE_GLOBAL_SCREENSHOT,
                     mNotificationBuilder.build());
