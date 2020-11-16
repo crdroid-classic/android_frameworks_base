@@ -6997,8 +6997,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         @Override public void run() {
             synchronized (mScreenshotLock) {
                 if (mScreenshotConnection != null) {
-                    mContext.unbindService(mScreenshotConnection);
-                    mScreenshotConnection = null;
+                    resetScreenshotConnection();
                     notifyScreenshotError();
                 }
             }
@@ -7041,8 +7040,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                             public void handleMessage(Message msg) {
                                 synchronized (mScreenshotLock) {
                                     if (mScreenshotConnection == myConn) {
-                                        mContext.unbindService(mScreenshotConnection);
-                                        mScreenshotConnection = null;
+                                        resetScreenshotConnection();
                                         mHandler.removeCallbacks(mScreenshotTimeout);
                                     }
                                 }
@@ -7065,8 +7063,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 public void onServiceDisconnected(ComponentName name) {
                     synchronized (mScreenshotLock) {
                         if (mScreenshotConnection != null) {
-                            mContext.unbindService(mScreenshotConnection);
-                            mScreenshotConnection = null;
+                            resetScreenshotConnection();
                             mHandler.removeCallbacks(mScreenshotTimeout);
                             notifyScreenshotError();
                         }
@@ -7154,6 +7151,16 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         errorIntent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT |
                 Intent.FLAG_RECEIVER_FOREGROUND);
         mContext.sendBroadcastAsUser(errorIntent, UserHandle.CURRENT);
+    }
+
+    /**
+     * Reset the screenshot connection.
+     */
+    private void resetScreenshotConnection() {
+        if (mScreenshotConnection != null) {
+            mContext.unbindService(mScreenshotConnection);
+            mScreenshotConnection = null;
+        }
     }
 
     private void setVolumeWakeTriggered(final int keyCode, boolean triggered) {
@@ -8019,6 +8026,12 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 synchronized (mWindowManagerFuncs.getWindowManagerLock()) {
                     mLastSystemUiFlags = 0;
                     updateSystemUiVisibilityLw();
+                }
+
+                // close the screenshot connection on user switch so that screenshots
+                // are always started with the correct user's context
+                synchronized(mScreenshotLock) {
+                  resetScreenshotConnection();
                 }
             }
         }
