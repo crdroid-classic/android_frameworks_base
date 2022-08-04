@@ -769,4 +769,8 @@ final class ProcessRecord {
         }
         return list;
     }
+
+    ActiveInstrumentation getActiveInstrumentation() {
+        return instr;
+    }
 }
