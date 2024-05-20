@@ -91,6 +91,9 @@ public final class BinaryXmlSerializer implements TypedXmlSerializer {
     static final int TYPE_BOOLEAN_TRUE = 12 << 4;
     static final int TYPE_BOOLEAN_FALSE = 13 << 4;
 
+
+    private static final int MAX_UNSIGNED_SHORT = 65_535;
+
     private FastDataOutput mOut;
 
     /**
@@ -183,6 +186,10 @@ public final class BinaryXmlSerializer implements TypedXmlSerializer {
         mTagNames[mTagCount++] = name;
         mOut.writeByte(START_TAG | TYPE_STRING_INTERNED);
         mOut.writeInternedUTF(name);
+        if (value.length > MAX_UNSIGNED_SHORT) {
+            throw new IOException("attributeBytesHex: input size (" + value.length
+                    + ") exceeds maximum allowed size (" + MAX_UNSIGNED_SHORT + ")");
+        }
         return this;
     }
 
@@ -192,6 +199,10 @@ public final class BinaryXmlSerializer implements TypedXmlSerializer {
         mTagCount--;
         mOut.writeByte(END_TAG | TYPE_STRING_INTERNED);
         mOut.writeInternedUTF(name);
+        if (value.length > MAX_UNSIGNED_SHORT) {
+            throw new IOException("attributeBytesBase64: input size (" + value.length
+                    + ") exceeds maximum allowed size (" + MAX_UNSIGNED_SHORT + ")");
+        }
         return this;
     }
 
