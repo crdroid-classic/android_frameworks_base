@@ -88,7 +88,7 @@ public class KeyguardHostView extends FrameLayout implements SecurityCallback {
                         // the user proved presence via some other way to the trust agent.
                         Log.i(TAG, "TrustAgent dismissed Keyguard.");
                     }
-                    dismiss(false /* authenticated */, SecurityMode.Invalid);
+                    dismiss(false /* authenticated */);
                 } else {
                     mViewMediatorCallback.playTrustedSound();
                 }
@@ -181,12 +181,12 @@ public class KeyguardHostView extends FrameLayout implements SecurityCallback {
      *  @return True if the keyguard is done.
      */
     public boolean dismiss() {
-        return dismiss(false, getCurrentSecurityMode());
+        return dismiss(false);
     }
 
     public boolean handleBackKey() {
         if (mSecurityContainer.getCurrentSecuritySelection() != SecurityMode.None) {
-            mSecurityContainer.dismiss(false, getCurrentSecurityMode());
+            mSecurityContainer.dismiss(false);
             return true;
         }
         return false;
@@ -207,9 +207,8 @@ public class KeyguardHostView extends FrameLayout implements SecurityCallback {
     }
 
     @Override
-    public boolean dismiss(boolean authenticated, SecurityMode expectedSecurityMode) {
-        return mSecurityContainer.showNextSecurityScreenOrFinish(authenticated,
-            expectedSecurityMode);
+    public boolean dismiss(boolean authenticated) {
+        return mSecurityContainer.showNextSecurityScreenOrFinish(authenticated);
     }
 
     /**

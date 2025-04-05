@@ -38,7 +38,6 @@ import com.android.internal.telephony.ITelephony;
 import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.IccCardConstants.State;
-import com.android.keyguard.KeyguardSecurityModel.SecurityMode;
 
 
 /**
@@ -339,7 +338,7 @@ public class KeyguardSimPukView extends KeyguardPinBasedInputView {
                                 mRemainingAttempts = -1;
                                 mShowDefaultMessage = true;
                                 if (mCallback != null) {
-                                    mCallback.dismiss(true, SecurityMode.SimPuk);
+                                    mCallback.dismiss(true);
                                 }
                             } else {
                                 mShowDefaultMessage = false;
@@ -425,11 +424,6 @@ public class KeyguardSimPukView extends KeyguardPinBasedInputView {
                 }
             }
         }.start();
-    }
-
-    @Override
-    public SecurityMode getSecurityMode() {
-        return SecurityMode.SimPuk;
     }
 }
 

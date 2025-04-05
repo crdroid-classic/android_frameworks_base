@@ -20,7 +20,6 @@ import com.android.internal.telephony.ITelephony;
 import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.telephony.IccCardConstants.State;
 import com.android.internal.telephony.PhoneConstants;
-import com.android.keyguard.KeyguardSecurityModel.SecurityMode;
 
 import android.content.Context;
 import android.content.res.ColorStateList;
@@ -284,7 +283,7 @@ public class KeyguardSimPinView extends KeyguardPinBasedInputView {
                                 mRemainingAttempts = -1;
                                 mShowDefaultMessage = true;
                                 if (mCallback != null) {
-                                    mCallback.dismiss(true, SecurityMode.SimPin);
+                                    mCallback.dismiss(true);
                                 }
                             } else {
                                 mShowDefaultMessage = false;
@@ -356,11 +355,6 @@ public class KeyguardSimPinView extends KeyguardPinBasedInputView {
         }
         mSecurityMessageDisplay.setMessage(msg, true);
         mSimImageView.setImageTintList(ColorStateList.valueOf(color));
-    }
-
-    @Override
-    public SecurityMode getSecurityMode() {
-        return SecurityMode.SimPin;
     }
 }
 
