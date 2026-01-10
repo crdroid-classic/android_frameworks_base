@@ -4792,6 +4792,9 @@ public class PackageManagerService extends IPackageManager.Stub
                             InstantAppRegistry.DEFAULT_UNINSTALLED_INSTANT_APP_MIN_CACHE_PERIOD))) {
                 return;
             }
+
+            // 11. Clear temp install session files
+            mInstallerService.freeStageDirs(volumeUuid, internalVolume);
         } else {
             try {
                 mInstaller.freeCache(volumeUuid, bytes, 0, 0);
@@ -5889,6 +5892,11 @@ public class PackageManagerService extends IPackageManager.Stub
     @Override
     public List<String> getAllPackages() {
         final int callingUid = Binder.getCallingUid();
+        // enforceSystemOrRootOrShell:
+        if (callingUid != Process.SYSTEM_UID && callingUid != Process.ROOT_UID
+                && callingUid != Process.SHELL_UID) {
+            throw new SecurityException("getAllPackages is limited to privileged callers");
+        }
         final int callingUserId = UserHandle.getUserId(callingUid);
         synchronized (mPackages) {
             if (canViewInstantApps(callingUid, callingUserId)) {

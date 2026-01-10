@@ -63,6 +63,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.app.ActivityManager;
+import android.app.ActivityManagerInternal;
+import android.app.AlarmManager;
 import android.app.IActivityManager;
 import android.app.INotificationManager;
 import android.app.Notification;
@@ -70,6 +72,7 @@ import android.app.Notification.MessagingStyle.Message;
 import android.app.NotificationChannel;
 import android.app.NotificationChannelGroup;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.admin.DeviceAdminInfo;
 import android.app.admin.DevicePolicyManagerInternal;
 import android.app.usage.UsageStatsManagerInternal;
@@ -119,6 +122,9 @@ import com.android.server.lights.Light;
 import com.android.server.lights.LightsManager;
 import com.android.server.notification.NotificationManagerService.NotificationAssistants;
 import com.android.server.notification.NotificationManagerService.NotificationListeners;
+import com.android.server.pm.PackageManagerService;
+
+import com.google.common.collect.ImmutableList;
 
 import org.junit.After;
 import org.junit.Before;
@@ -140,6 +146,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 
 @SmallTest
 @RunWith(AndroidTestingRunner.class)
@@ -169,6 +176,8 @@ public class NotificationManagerServiceTest extends UiServiceTestCase {
     private AudioManager mAudioManager;
     @Mock
     ActivityManager mActivityManager;
+    @Mock
+    ActivityManagerInternal mAmi;
     NotificationManagerService.WorkerHandler mHandler;
     @Mock
     Resources mResources;
@@ -187,6 +196,8 @@ public class NotificationManagerServiceTest extends UiServiceTestCase {
     IBinder mPermOwner;
     @Mock
     IActivityManager mAm;
+    @Mock
+    AlarmManager mAlarmManager;
 
     // Use a Testable subclass so we can simulate calls from the system without failing.
     private static class TestableNotificationManagerService extends NotificationManagerService {
@@ -232,6 +243,8 @@ public class NotificationManagerServiceTest extends UiServiceTestCase {
         Secure.putIntForUser(getContext().getContentResolver(),
                 Secure.NOTIFICATION_BADGING, 1,
                 UserHandle.getUserHandleForUid(mUid).getIdentifier());
+
+        mContext.addMockSystemService(Context.ALARM_SERVICE, mAlarmManager);
 
         mService = new TestableNotificationManagerService(mContext);
 
@@ -283,7 +296,7 @@ public class NotificationManagerServiceTest extends UiServiceTestCase {
                     mListeners, mAssistants, mConditionProviders,
                     mCompanionMgr, mSnoozeHelper, mUsageStats, mPolicyFile, mActivityManager,
                     mGroupHelper, mAm, mAppUsageStats,
-                    mock(DevicePolicyManagerInternal.class));
+                    mock(DevicePolicyManagerInternal.class), mAmi);
         } catch (SecurityException e) {
             if (!e.getMessage().contains("Permission Denial: not allowed to send broadcast")) {
                 throw e;
@@ -386,6 +399,26 @@ public class NotificationManagerServiceTest extends UiServiceTestCase {
         });
 
         return answers;
+    }
+
+    @Test
+    public void testLimitTimeOutBroadcast() {
+        NotificationChannel channel = new NotificationChannel("id", "name",
+                NotificationManager.IMPORTANCE_HIGH);
+        Notification.Builder nb = new Notification.Builder(mContext, channel.getId())
+                .setContentTitle("foo")
+                .setSmallIcon(android.R.drawable.sym_def_app_icon)
+                .setTimeoutAfter(1);
+
+        StatusBarNotification sbn = new StatusBarNotification(PKG, PKG, 8, "tag", mUid, 0,
+                nb.build(), UserHandle.getUserHandleForUid(mUid), null, 0);
+        NotificationRecord r = new NotificationRecord(mContext, sbn, channel);
+
+        mService.scheduleTimeoutLocked(r);
+        ArgumentCaptor<PendingIntent> captor = ArgumentCaptor.forClass(PendingIntent.class);
+        verify(mAlarmManager).setExactAndAllowWhileIdle(anyInt(), anyLong(), captor.capture());
+        assertEquals(PackageManagerService.PLATFORM_PACKAGE_NAME,
+                captor.getValue().getIntent().getPackage());
     }
 
     @Test
@@ -1493,13 +1526,63 @@ public class NotificationManagerServiceTest extends UiServiceTestCase {
         when(mCompanionMgr.getAssociations(PKG, mUid)).thenReturn(associations);
         NotificationChannelGroup ncg = new NotificationChannelGroup("a", "b/c");
         mService.setRankingHelper(mRankingHelper);
-        when(mRankingHelper.getNotificationChannelGroup(eq(ncg.getId()), eq(PKG), anyInt()))
+        when(mRankingHelper.getNotificationChannelGroupWithChannels(
+                eq(PKG), anyInt(), eq(ncg.getId()), anyBoolean()))
                 .thenReturn(ncg);
         reset(mListeners);
         mBinderService.deleteNotificationChannelGroup(PKG, ncg.getId());
         verify(mListeners, times(1)).notifyNotificationChannelGroupChanged(eq(PKG),
                 eq(Process.myUserHandle()), eq(ncg),
                 eq(NotificationListenerService.NOTIFICATION_CHANNEL_OR_GROUP_DELETED));
+    }
+
+    @Test
+    public void testDeleteChannelGroupChecksForFgses() throws Exception {
+        List<String> associations = new ArrayList<>();
+        associations.add("a");
+        when(mCompanionMgr.getAssociations(PKG, mUid)).thenReturn(associations);
+        CountDownLatch latch = new CountDownLatch(2);
+        mService.createNotificationChannelGroup(
+                PKG, mUid, new NotificationChannelGroup("group", "group"), true, false);
+        new Thread(() -> {
+            NotificationChannel notificationChannel = new NotificationChannel("id", "id",
+                    NotificationManager.IMPORTANCE_HIGH);
+            notificationChannel.setGroup("group");
+            ParceledListSlice<NotificationChannel> pls =
+                    new ParceledListSlice(ImmutableList.of(notificationChannel));
+            try {
+                mBinderService.createNotificationChannelsForPackage(PKG, mUid, pls);
+            } catch (RemoteException e) {
+                throw new RuntimeException(e);
+            }
+            latch.countDown();
+        }).start();
+        new Thread(() -> {
+            try {
+                synchronized (this) {
+                    wait(5000);
+                }
+                mService.createNotificationChannelGroup(PKG, mUid,
+                        new NotificationChannelGroup("new", "new group"), true, false);
+                NotificationChannel notificationChannel =
+                        new NotificationChannel("id", "id", NotificationManager.IMPORTANCE_HIGH);
+                notificationChannel.setGroup("new");
+                ParceledListSlice<NotificationChannel> pls =
+                        new ParceledListSlice(ImmutableList.of(notificationChannel));
+                try {
+                mBinderService.createNotificationChannelsForPackage(PKG, mUid, pls);
+                mBinderService.deleteNotificationChannelGroup(PKG, "group");
+                } catch (RemoteException e) {
+                    throw new RuntimeException(e);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            latch.countDown();
+        }).start();
+
+        latch.await();
+        verify(mAmi).hasForegroundServiceNotification(anyString(), anyInt(), anyString());
     }
 
     @Test
